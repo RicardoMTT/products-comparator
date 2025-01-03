@@ -1,0 +1,4 @@
+com\prices\comparator\price_comparator\controllers\PriceComparatorController.class
+com\prices\comparator\price_comparator\PriceComparatorApplication.class
+com\prices\comparator\price_comparator\services\PriceComparatorService.class
+com\prices\comparator\price_comparator\dto\ProductResponse.class
