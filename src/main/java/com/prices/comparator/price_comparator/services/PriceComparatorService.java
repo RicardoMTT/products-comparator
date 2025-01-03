@@ -2,10 +2,7 @@ package com.prices.comparator.price_comparator.services;
 
 
 import com.prices.comparator.price_comparator.dto.ProductResponse;
-import org.openqa.selenium.By;
-import org.openqa.selenium.NoSuchElementException;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -87,63 +84,88 @@ public class PriceComparatorService {
 
 
 
-    private List<Map<String, String>> scrapeTambo(String searchQuery,WebDriver driver) {
+    private List<Map<String, String>> scrapeTambo(String searchQuery, WebDriver driver) {
         List<Map<String, String>> products = new ArrayList<>();
-
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
         try {
-            // Construir la URL y navegar a ella
             String searchUrl = "https://www.tambo.pe/pedir?q=" + searchQuery;
             driver.get(searchUrl);
 
-            Thread.sleep(5000); // Esperar 5 segundos para que la página cargue completamente
+            Thread.sleep(5000); // Esperar carga inicial
 
             // Esperar a que los elementos de productos estén presentes
             wait.until(ExpectedConditions.presenceOfElementLocated(
                     By.cssSelector("div._1kZCFobRwQ2tl6XA-sf6Ig.row")));
 
-            // Encontrar todos los elementos de producto
-            List<WebElement> productElements = driver.findElements(
-                    By.cssSelector("div.col-xs-4:has(span._3tOb1kUYtBNfge7JfPDU_D)"));
+            // Implementar scroll infinito
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            int previousSize = 0;
+            int attempts = 0;
+            int maxAttempts = 10; // Número máximo de intentos de scroll
 
-            System.out.println("Cantidad de productos encontrados: " + productElements.size());
+            while (attempts < maxAttempts) {
+                // Scroll hasta el final de la página
+                js.executeScript("window.scrollTo(0, document.body.scrollHeight)");
+                Thread.sleep(2000); // Esperar a que carguen nuevos elementos
 
-            for (WebElement productElement : productElements) {
-                try {
-                    Map<String, String> productData = new HashMap<>();
+                List<WebElement> productElements = driver.findElements(
+                        By.cssSelector("div.col-xs-4:has(span._3tOb1kUYtBNfge7JfPDU_D)"));
 
-                    // Extraer nombre del producto
-                    WebElement nameElement = productElement.findElement(
-                            By.cssSelector("span._3tOb1kUYtBNfge7JfPDU_D"));
+                int currentSize = productElements.size();
+                System.out.println("Productos encontrados hasta ahora: " + currentSize);
 
-                    String productName = nameElement.getText().trim();
+                // Si no hay nuevos productos después del scroll, intentar unas veces más antes de terminar
+                if (currentSize == previousSize) {
+                    attempts++;
+                } else {
+                    attempts = 0; // Reiniciar contador si encontramos nuevos productos
+                }
 
-                    // Extraer precio
-                    WebElement priceElement = productElement.findElement(
-                            By.cssSelector("div._3cwJgygKLOPOt2029qoP1N"));
-                    String productPrice = priceElement.getText().trim();
+                previousSize = currentSize;
 
-                    // Extraer imagen
-                    WebElement imageElement = productElement.findElement(By.tagName("img"));
-                    String imageUrl = imageElement.getAttribute("src");
+                // Si ya no hay más productos nuevos después de varios intentos, procesar los productos
+                if (attempts >= 3) {
+                    // Procesar todos los productos encontrados
+                    for (WebElement productElement : productElements) {
+                        try {
+                            Map<String, String> productData = new HashMap<>();
 
-                    productData.put("name", productName);
-                    productData.put("price", productPrice);
-                    productData.put("image", imageUrl);
-                    productData.put("source", "tambo");
+                            // Hacer scroll hasta el elemento para asegurarnos de que está visible
+                            js.executeScript("arguments[0].scrollIntoView(true);", productElement);
+                            Thread.sleep(100); // Breve pausa para evitar problemas de renderizado
 
-                    products.add(productData);
+                            // Extraer nombre del producto
+                            WebElement nameElement = productElement.findElement(
+                                    By.cssSelector("span._3tOb1kUYtBNfge7JfPDU_D"));
+                            String productName = nameElement.getText().trim();
 
-                    // Debug
-                    System.out.println("Producto encontrado:");
-                    System.out.println("Nombre: " + productName);
-                    System.out.println("Precio: " + productPrice);
-                    System.out.println("Imagen: " + imageUrl);
-                    System.out.println("-------------------");
+                            // Extraer precio
+                            WebElement priceElement = productElement.findElement(
+                                    By.cssSelector("div._3cwJgygKLOPOt2029qoP1N"));
+                            String productPrice = priceElement.getText().trim();
 
-                } catch (Exception e) {
-                    System.err.println("Error procesando un producto: " + e.getMessage());
+                            // Extraer imagen
+                            WebElement imageElement = productElement.findElement(By.tagName("img"));
+                            String imageUrl = imageElement.getAttribute("src");
+
+                            productData.put("name", productName);
+                            productData.put("price", productPrice);
+                            productData.put("image", imageUrl);
+                            productData.put("source", "tambo");
+
+                            products.add(productData);
+
+                            System.out.println("Producto procesado:");
+                            System.out.println("Nombre: " + productName);
+                            System.out.println("Precio: " + productPrice);
+                            System.out.println("-------------------");
+
+                        } catch (Exception e) {
+                            System.err.println("Error procesando un producto: " + e.getMessage());
+                        }
+                    }
+                    break; // Salir del bucle una vez procesados todos los productos
                 }
             }
 
@@ -154,7 +176,6 @@ public class PriceComparatorService {
 
         return products;
     }
-
 
     public List<Map<String, String>> scrapeTottus(String searchQuery,WebDriver driver) {
         List<Map<String, String>> products = new ArrayList<>();
